@@ -287,7 +287,7 @@ class DocbookVisitor
 
   def append_text text, unsub = false
     text = reverse_subs text if unsub
-    @lines[-1] = %(#{@lines[-1]}#{text})
+    lines.empty? ? lines[0] = text : @lines[-1] = %(#{@lines[-1]}#{text})
   end
 
   ## Lifecycle callbacks
@@ -646,7 +646,8 @@ class DocbookVisitor
   def visit_variablelist node
     append_blank_line
     append_block_title node
-    @lines.pop if @lines[-1].empty?
+    @lines.pop if ( ! @lines.empty? && @lines[-1].empty? )
+
     true
   end
 
