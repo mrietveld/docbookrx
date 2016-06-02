@@ -143,6 +143,10 @@ class DocbookVisitor
     after_traverse node, visit_method_name if (respond_to? :after_traverse)
   end
 
+  def after
+    replace_ifdef_lines
+  end
+
   def traverse_children node, opts = {}
     (opts[:using_elements] ? node.elements : node.children).each do |child|
       child.accept self
@@ -291,6 +295,8 @@ class DocbookVisitor
   ## Lifecycle callbacks
 
   def before_traverse node, method
+    append_ifdef_start_if_condition(node)
+
     case method.to_s
     when "visit_itemizedlist", "visit_orderedlist"
       @list_depth += 1
@@ -336,6 +342,8 @@ class DocbookVisitor
         end
       end
     end
+
+    append_ifdef_end_if_condition(node)
   end
 
   ## Node visitor callbacks
@@ -1035,6 +1043,7 @@ class DocbookVisitor
       append_blank_line
     end
     (node.css '> tgroup > tbody > row').each do |row|
+      append_ifdef_start_if_condition(row)
       append_blank_line
       row.elements.each do |cell|
         case cell.name
@@ -1045,6 +1054,7 @@ class DocbookVisitor
           proceed cell
         end
       end
+      append_ifdef_end_if_condition(row)
     end
     if foot
       (foot.css '> row > entry').each do |cell|
@@ -1562,6 +1572,43 @@ class DocbookVisitor
 
   def unwrap_text text
     text.gsub WrappedIndentRx, ''
+  end
+
+  def element_with_condition? node
+    node.type == ELEMENT_NODE && node.attr('condition')
+  end
+
+  def append_ifdef_if_condition node
+    return unless element_with_condition?(node)
+    condition = node.attr('condition')
+    yield condition
+  end
+
+  def append_ifdef_start_if_condition node
+    append_ifdef_if_condition node do |condition|
+      append_line "ifdef::#{condition}[]"
+    end
+  end
+
+  def append_ifdef_end_if_condition node
+    append_ifdef_if_condition node do |condition|
+      append_line "endif::#{condition}[]"
+    end
+  end
+
+  def replace_ifdef_lines
+    out_lines = []
+    @lines.each do |line|
+      if (data = line.match(/^((ifdef|endif)::.+?\[\])(.+)$/))
+        # data[1]: "(ifdef|endif)::someting[]"
+        out_lines << data[1]
+        # data[3]: a string after "[]"
+        out_lines << data[3]
+      else
+        out_lines << line
+      end
+    end
+    @lines = out_lines
   end
 end
 end

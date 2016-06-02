@@ -987,4 +987,333 @@ And sometimes it does not.
 
     expect(output).to include(expected)
   end
+
+  describe "of node with condition" do
+    ['phrase', 'foreignphrase', 'guiicon'].each do |name|
+      describe "for inline #{name}" do
+        it 'should convert from no condition' do
+          input = <<-EOS
+<para xmlns="http://docbook.org/ns/docbook">a<#{name}>b</#{name}>c</para>
+          EOS
+          expected = <<-EOS.rstrip
+
+ab
+c
+          EOS
+          output = Docbookrx.convert input
+          expect(output).to eq(expected)
+        end
+
+        it 'should convert to ifdef directive' do
+          input = <<-EOS
+<para xmlns="http://docbook.org/ns/docbook">a<#{name} condition="foo">b</#{name}>c</para>
+          EOS
+          expected = <<-EOS.rstrip
+
+a
+ifdef::foo[]
+b
+endif::foo[]
+c
+          EOS
+          output = Docbookrx.convert input
+          expect(output).to eq(expected)
+        end
+
+        it 'should convert from new line tag to ifdef directive.' do
+          input = <<-EOS
+<para xmlns="http://docbook.org/ns/docbook">a
+<#{name} condition="foo">b</#{name}>
+c</para>
+          EOS
+          expected = <<-EOS.rstrip
+
+a 
+ifdef::foo[]
+b
+endif::foo[]
+ c
+          EOS
+          output = Docbookrx.convert input
+          expect(output).to eq(expected)
+        end
+
+        it 'should convert to ifdef directives' do
+          input = <<-EOS
+<para xmlns="http://docbook.org/ns/docbook">a<#{name} condition="foo">b</#{name}><#{name} condition="bar">c</#{name}>d</para>
+          EOS
+          expected = <<-EOS.rstrip
+
+a
+ifdef::foo[]
+b
+endif::foo[]
+ifdef::bar[]
+c
+endif::bar[]
+d
+          EOS
+          output = Docbookrx.convert input
+          expect(output).to eq(expected)
+        end
+      end
+    end
+
+    ['para', 'simpara'].each do |name|
+      describe "for block #{name}" do
+        it 'should convert from no condition' do
+          input = <<-EOS
+<para xmlns="http://docbook.org/ns/docbook">
+  <#{name}>a</#{name}>
+  <#{name}>b</#{name}>
+</para>
+          EOS
+          expected = <<-EOS.rstrip
+
+
+a
+
+b
+          EOS
+          output = Docbookrx.convert input
+          expect(output).to eq(expected)
+        end
+
+        it 'should convert to ifdef directive' do
+          input = <<-EOS
+<para xmlns="http://docbook.org/ns/docbook">
+  <#{name} condition="foo">a</#{name}>
+  <#{name} condition="bar">b</#{name}>
+</para>
+          EOS
+          expected = <<-EOS.rstrip
+
+
+ifdef::foo[]
+
+a
+endif::foo[]
+ifdef::bar[]
+
+b
+endif::bar[]
+          EOS
+          output = Docbookrx.convert input
+          expect(output).to eq(expected)
+        end
+      end
+    end
+
+    describe "for block table, row" do
+      it 'should convert from no condition' do
+        input = <<-EOS
+          <para xmlns="http://docbook.org/ns/docbook">
+            <table>
+              <title>a1</title>
+              <tgroup cols="1">
+                <tbody>
+                  <row>
+                    <entry>
+                      <para>
+                        a2
+                      </para>
+                    </entry>
+                  </row>
+                  <row>
+                    <entry>
+                      <para>
+                        a3
+                      </para>
+                    </entry>
+                  </row>
+                </tbody>
+              </tgroup>
+            </table>
+          </para>
+        EOS
+        expected = <<-EOS.rstrip
+
+
+
+.a1
+[cols="1"]
+|===
+|
+
+a2 
+
+|
+
+a3 
+|===
+
+        EOS
+        output = Docbookrx.convert input
+        expect(output).to eq(expected)
+      end
+
+      it 'should convert from table condition to ifdef directive' do
+        input = <<-EOS
+          <para xmlns="http://docbook.org/ns/docbook">
+            <table condition="foo">
+              <title>a1</title>
+              <tgroup cols="1">
+                <tbody>
+                  <row>
+                    <entry>
+                      <para>
+                        a2
+                      </para>
+                    </entry>
+                  </row>
+                </tbody>
+              </tgroup>
+            </table>
+          </para>
+        EOS
+        expected = <<-EOS.rstrip
+
+
+ifdef::foo[]
+
+.a1
+[cols="1"]
+|===
+|
+
+a2 
+|===
+endif::foo[]
+
+        EOS
+        output = Docbookrx.convert input
+        expect(output).to eq(expected)
+      end
+
+      it 'should convert from row condition to ifdef directive' do
+        input = <<-EOS
+          <para xmlns="http://docbook.org/ns/docbook">
+            <table>
+              <title>a1</title>
+              <tgroup cols="1">
+                <tbody>
+                  <row condition="foo">
+                    <entry>
+                      <para>a2</para>
+                    </entry>
+                  </row>
+                  <row condition="bar">
+                    <entry>
+                      <para>a3</para>
+                    </entry>
+                  </row>
+                </tbody>
+              </tgroup>
+            </table>
+          </para>
+        EOS
+        expected = <<-EOS.rstrip
+
+
+
+.a1
+[cols="1"]
+|===
+ifdef::foo[]
+|
+
+a2
+endif::foo[]
+ifdef::bar[]
+
+|
+
+a3
+endif::bar[]
+|===
+
+        EOS
+        output = Docbookrx.convert input
+        expect(output).to eq(expected)
+
+      end
+    end
+
+    describe "for block figure" do
+      it 'should convert from no condition' do
+        input = <<-EOS
+          <para xmlns="http://docbook.org/ns/docbook">
+            <figure>
+              <title>a1</title>
+              <mediaobject>
+                <imageobject>
+                  <imagedata depth="4in" fileref="images/dummy.png" format="PNG" width="4in" />
+                </imageobject>
+              </mediaobject>
+            </figure>
+            <figure>
+              <title>b1</title>
+              <mediaobject>
+                <imageobject>
+                  <imagedata depth="4in" fileref="images/dummy2.png" format="PNG" width="4in" />
+                </imageobject>
+              </mediaobject>
+            </figure>
+          </para>
+        EOS
+        expected = <<-EOS
+
+
+
+.a1
+image::images/dummy.png[]
+
+
+.b1
+image::images/dummy2.png[]
+        EOS
+        output = Docbookrx.convert input
+        expect(output).to eq(expected)
+      end
+
+      it 'should convert to ifdef directive' do
+        input = <<-EOS
+          <para xmlns="http://docbook.org/ns/docbook">
+            <figure condition="foo">
+              <title>a1</title>
+              <mediaobject>
+                <imageobject>
+                  <imagedata depth="4in" fileref="images/dummy.png" format="PNG" width="4in" />
+                </imageobject>
+              </mediaobject>
+            </figure>
+            <figure>
+              <title>b1</title>
+              <mediaobject>
+                <imageobject>
+                  <imagedata depth="4in" fileref="images/dummy2.png" format="PNG" width="4in" />
+                </imageobject>
+              </mediaobject>
+            </figure>
+          </para>
+        EOS
+        expected = <<-EOS
+
+
+ifdef::foo[]
+
+.a1
+image::images/dummy.png[]
+
+endif::foo[]
+
+.b1
+image::images/dummy2.png[]
+        EOS
+        output = Docbookrx.convert input
+        expect(output).to eq(expected)
+
+      end
+    end
+  end
 end
